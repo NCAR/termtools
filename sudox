@@ -1,0 +1,49 @@
+#!/bin/bash
+
+if [ "$#" -lt 1 ] || [ $1 == -h ]; then
+    printf "Usage: sudox <sudo-user-name>\n"
+    exit -1 
+fi
+
+sudouser=$1
+
+if [ "$#" -eq 1 ] ; then
+   shell=$(getent passwd $LOGNAME | awk -F: '{print $NF}')
+else
+   shell=$2
+fi
+
+xauthentry=$(xauth list $DISPLAY)
+disp=$(echo $xauthentry | awk '{print $1}')
+
+cmdfile=/tmp/sudodisp.$$
+
+rm -f $cmdfile
+cat << EOF > $cmdfile
+#!$shell
+EOF
+
+case $shell in
+    *csh)
+        echo "setenv DISPLAY $DISPLAY" >> $cmdfile
+        echo "setenv SHELL $shell" >> $cmdfile
+        ;;
+    *sh)
+        echo "export DISPLAY=$DISPLAY" >> $cmdfile
+        echo "export SHELL=$shell" >> $cmdfile
+        ;;
+    *)
+        >&2 echo "Error: unknown shell $shell"
+        exit 1
+        ;;
+esac
+
+if [ ! -z "$DISPLAY" ] ; then
+   echo "xauth remove $DISPLAY" >> $cmdfile
+   echo "xauth add $xauthentry" >> $cmdfile
+fi
+
+echo $shell >> $cmdfile
+chmod 755 $cmdfile
+sudo -u $sudouser $cmdfile
+rm -f $cmdfile
