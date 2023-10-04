@@ -1,0 +1,98 @@
+#!/bin/bash
+
+function usage {
+    echo "Usage: $0 [intel|pgi|matlab]"
+}
+
+lmutil=/glade/u/apps/opt/lmutil/bin/lmutil
+
+# lmstat settings
+declare -A license_address
+license_address[matlab]=27000@matlab-lic.hpc.ucar.edu
+license_address[intel]=28518@stargate11.nwsc.ucar.edu
+license_address[pgi]=28518@stargate11.nwsc.ucar.edu
+
+declare -A search_start
+search_start[matlab]=MLM
+search_start[intel]=INTEL
+search_start[pgi]=pgroupd
+
+# Specify license location
+licname="matlab intel pgi"
+
+while [[ $# -ge 1 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit
+            ;;
+        -u|--users)
+            usermode=true
+            ;;
+        matlab|intel|pgi)
+            licname=$1
+            ;;
+        *)
+            2>&1 echo "Error: no license for $1!"
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+function uhead {
+cat << EOF
+-----------------------------
+  License usage information
+-----------------------------
+
+EOF
+}
+
+if [[ $usermode == true ]]; then
+    uhead
+    for lic in $licname; do
+        $lmutil lmstat -c ${license_address[$lic]} -A | sed "/${search_start[$lic]}: UP/,/: UP/!d;//d" | grep -e "Users of" -A0 -e ", start"
+        echo
+    done
+else
+    sed_cmd="sed 's|Users of \([^:]*\)[^0-9]*\([^ ]*\)[^0-9]*\([^ ]*\).*|\1 \3 \2|'"
+
+    printf "\n%31s %9s | %4s | %5s\n" "" Me Used Total
+    printf "%57s\n" "" | tr ' ' '-'
+    pm=0
+
+    for lic in $licname; do
+        while read -r line; do
+            if [[ $line == Users* ]]; then
+                if [[ -n $ln ]]; then
+                    if [[ $ln =~ (_Toolbox*|_Engine*|_Builder*|Compiler) ]]; then
+                        printf "   |-- %-27s %6d | %4d | %5d\n" $ln: $lm $lu $la
+                    elif [[ $ln =~ (MATLAB|INTEL) ]]; then
+                        printf "\n %-30s %9d | %4d | %5d\n" $ln: $lm $lu $la
+                    fi
+                fi
+
+                read ln lu la <<< $(eval $sed_cmd <<< $line)
+                lm=0
+
+                if [[ $ln == IBDB034BC ]]; then
+                    ln=INTEL
+                elif [[ $ln == PGI20??-* ]]; then
+                    ln=PGI
+                    pu=$((pu+lu))
+                    pa=$((pa+la))
+                fi
+            elif [[ $line =~ ' '*${USER}' '.* ]]; then
+                [[ $ln == PGI ]] && pm=$((pm+1)) || lm=$((lm+1))
+            fi
+        done < <($lmutil lmstat -c ${license_address[$lic]} -a | sed "/${search_start[$lic]}: UP/,/: UP/!d;//d" | grep -e "^Users of" -A0 -e ", start")
+
+        if [[ $lic == pgi ]]; then
+            printf "\n %-30s %9d | %4d | %5d\n" "PGI:" $pm $pu $pa
+        fi
+    done
+    echo
+fi
+
