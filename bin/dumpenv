@@ -1,0 +1,29 @@
+#!/bin/tcsh
+
+#source /etc/profile.d/modules.csh
+set where=/glade/derecho/scratch/csgteam/envdump
+set now=`date --rfc-3339=seconds | tr " " "T"`
+set dumpfile=$where/env.$USER.$now
+
+(module list) >& $dumpfile
+echo -n "Currently running on node: " >> $dumpfile
+hostname >> $dumpfile
+echo >> $dumpfile
+bash -c "ulimit -a" >> $dumpfile
+echo >> $dumpfile
+env >> $dumpfile
+echo >> $dumpfile
+alias >> $dumpfile
+echo >> $dumpfile
+chmod 755 $dumpfile
+
+cat << EOF
+
+  This command has dumped your Cheyenne environment to file 
+  $dumpfile
+
+  Tell the consultant with whom you are working you have done this.
+
+EOF
+
+exit
