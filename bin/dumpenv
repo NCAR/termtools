@@ -4,6 +4,7 @@
 set where=/glade/derecho/scratch/csgteam/envdump
 set now=`date --rfc-3339=seconds | tr " " "T"`
 set dumpfile=$where/env.$USER.$now
+set cluster=`echo $NCAR_HOST | sed 's/./\U&/'`
 
 (module list) >& $dumpfile
 echo -n "Currently running on node: " >> $dumpfile
@@ -19,7 +20,7 @@ chmod 755 $dumpfile
 
 cat << EOF
 
-  This command has dumped your Cheyenne environment to file 
+  This command has dumped your $cluster environment to file
   $dumpfile
 
   Tell the consultant with whom you are working you have done this.
